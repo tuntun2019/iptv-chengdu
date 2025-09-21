@@ -1,11 +1,11 @@
-#EXTM3U name="成都电信IPTV - 2025-09-19T01:11:02Z" url-tvg="http://epg.51zmt.top:8000/e.xml,https://epg.112114.xyz/pp.xml"
+#EXTM3U name="成都电信IPTV - 2025-09-21T01:16:45Z" url-tvg="http://epg.51zmt.top:8000/e.xml,https://epg.112114.xyz/pp.xml"
 
 #EXTINF:-1 tvg-logo="http://epg.51zmt.top:8000/tb1/CCTV/CCTV1.png" tvg-id="1" tvg-name="CCTV1" group-title="CCTV",CCTV1
 http://192.168.19.254:8866/rtp/239.94.0.31:5140
 #EXTINF:-1 tvg-logo="http://epg.51zmt.top:8000/tb1/CCTV/CCTV2.png" tvg-id="2" tvg-name="CCTV2" group-title="CCTV",CCTV2
 http://192.168.19.254:8866/rtp/239.94.0.2:5140
 #EXTINF:-1 tvg-logo="http://epg.51zmt.top:8000/tb1/CCTV/CCTV3.png" tvg-id="3" tvg-name="CCTV3" group-title="CCTV",CCTV3
-http://192.168.19.254:8866/rtp/239.93.0.11:5140
+http://192.168.19.254:8866/rtp/239.94.0.32:5140
 #EXTINF:-1 tvg-logo="http://epg.51zmt.top:8000/tb1/CCTV/CCTV4.png" tvg-id="4" tvg-name="CCTV4" group-title="CCTV",CCTV4
 http://192.168.19.254:8866/rtp/239.94.0.4:5140
 #EXTINF:-1 tvg-logo="http://epg.51zmt.top:8000/tb1/CCTV/CCTV5.png" tvg-id="5" tvg-name="CCTV5" group-title="CCTV",CCTV5
