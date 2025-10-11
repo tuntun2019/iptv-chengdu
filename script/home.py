@@ -8,7 +8,8 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 import strict_rfc3339
 import re
-
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 #with open('./sctvmulticast.html') as f:
 #   res=f.read()
