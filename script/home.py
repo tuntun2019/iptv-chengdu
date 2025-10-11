@@ -8,13 +8,25 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 import strict_rfc3339
 import re
-import urllib3  # 添加这行
+import urllib3
+import ssl
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.poolmanager import PoolManager
 
 # 禁用SSL警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-#with open('./sctvmulticast.html') as f:
-#   res=f.read()
+# 创建一个忽略所有 SSL 错误的适配器
+class InsecureTLSAdapter(HTTPAdapter):
+    def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
+        self.poolmanager = PoolManager(
+            num_pools=connections,
+            maxsize=maxsize,
+            block=block,
+            ssl_version=ssl.PROTOCOL_TLS,
+            assert_hostname=False,
+            cert_reqs=ssl.CERT_NONE
+        )
 
 sourceTvboxIptv="https://raw.githubusercontent.com/gaotianliuyun/gao/master/list.txt"
 sourceIcon51ZMT="http://epg.51zmt.top:8000"
@@ -46,8 +58,10 @@ def checkChannelExist(listIptv, channel):
     return False
 
 def appendOnlineIptvFromTvbox(listIptv):
-    # 这里也需要添加 verify=False
-    onlineIptv = requests.get(sourceTvboxIptv, verify=False).content
+    # 使用自定义会话
+    session = requests.Session()
+    session.mount('https://', InsecureTLSAdapter())
+    onlineIptv = session.get(sourceTvboxIptv).content
     lines = onlineIptv.splitlines()
 
     for line in lines:
@@ -95,7 +109,7 @@ def findIcon(m, id):
 
 
 def loadIcon():
-    # 这里不需要 verify=False，因为是 HTTP
+    # 这里不需要 SSL，因为是 HTTP
     res = requests.get(sourceIcon51ZMT).content
     m=[]
     #res=""
@@ -170,16 +184,23 @@ def generateHome():
 
 mIcons = loadIcon()
 
-# 这里添加 verify=False
-res = requests.get(sourceChengduMulticast, verify=False).content
+# 使用自定义会话
+session = requests.Session()
+session.mount('https://', InsecureTLSAdapter())
+res = session.get(sourceChengduMulticast).content
+
 soup = BeautifulSoup(res, 'lxml')
 m={}
 for tr in soup.find_all(name='tr'):
     td = tr.find_all(name='td')
+    if len(td) < 3:
+        continue
     if td[0].string == "序号":
         continue
 
     name = td[1].string
+    if name is None:
+        continue
     if isIn(listUnused, name):
         continue
 
