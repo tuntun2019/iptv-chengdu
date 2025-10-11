@@ -8,7 +8,9 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 import strict_rfc3339
 import re
-import urllib3
+import urllib3  # 添加这行
+
+# 禁用SSL警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 #with open('./sctvmulticast.html') as f:
@@ -44,7 +46,8 @@ def checkChannelExist(listIptv, channel):
     return False
 
 def appendOnlineIptvFromTvbox(listIptv):
-    onlineIptv = requests.get(sourceTvboxIptv).content
+    # 这里也需要添加 verify=False
+    onlineIptv = requests.get(sourceTvboxIptv, verify=False).content
     lines = onlineIptv.splitlines()
 
     for line in lines:
@@ -92,6 +95,7 @@ def findIcon(m, id):
 
 
 def loadIcon():
+    # 这里不需要 verify=False，因为是 HTTP
     res = requests.get(sourceIcon51ZMT).content
     m=[]
     #res=""
@@ -166,7 +170,8 @@ def generateHome():
 
 mIcons = loadIcon()
 
-res = requests.get(sourceChengduMulticast).content
+# 这里添加 verify=False
+res = requests.get(sourceChengduMulticast, verify=False).content
 soup = BeautifulSoup(res, 'lxml')
 m={}
 for tr in soup.find_all(name='tr'):
@@ -195,9 +200,3 @@ for tr in soup.find_all(name='tr'):
 appendOnlineIptvFromTvbox(m)
 
 generateHome()
-
-
-
-
-#res = requests.get("https://raw.githubusercontent.com/iptv-org/iptv/master/streams/hk.m3u")
-
