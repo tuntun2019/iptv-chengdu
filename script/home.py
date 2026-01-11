@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import pytz,os
+pip install pytz
+import pytz
+import os
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
@@ -13,7 +15,7 @@ china_tz = pytz.timezone('Asia/Shanghai')
 
 sourceIcon51ZMT = "https://epg.51zmt.top:8001"
 sourceChengduMulticast = "https://epg.51zmt.top:8001/sctvmulticast.html"
-homeLanAddress = "http://192.168.116.254:8866"
+homeLanAddress = "http://192.168.16.254:8866"
 
 # groupCCTV=["CCTV", "CETV", "CGTN"]
 groupCCTV = ["CCTV"]
