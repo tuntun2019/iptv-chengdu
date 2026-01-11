@@ -1,105 +1,65 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import pytz,os
 import requests
-import m3u8
-import sys
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
-import strict_rfc3339
-import re
-import urllib3  # 添加这行
+from urllib.parse import urlparse, urljoin
+from datetime import datetime
+import fill_m3u8, fill_erw_epg
 
-# 禁用SSL警告
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+# 获取中国时区
+china_tz = pytz.timezone('Asia/Shanghai')
 
-#with open('./sctvmulticast.html') as f:
-#   res=f.read()
+sourceIcon51ZMT = "https://epg.51zmt.top:8001"
+sourceChengduMulticast = "https://epg.51zmt.top:8001/sctvmulticast.html"
+homeLanAddress = "http://192.168.19.1:8866"
 
-sourceTvboxIptv="https://raw.githubusercontent.com/gaotianliuyun/gao/master/list.txt"
-sourceIcon51ZMT="http://epg.51zmt.top:8000"
-sourceChengduMulticast="https://epg.51zmt.top:8001/sctvmulticast.html"
-homeLanAddress="http://192.168.19.254:8866"
+# groupCCTV=["CCTV", "CETV", "CGTN"]
+groupCCTV = ["CCTV"]
+groupWS = ["卫视"]
+groupSC = ["SCTV", "四川", "CDTV", "熊猫", "峨眉", "成都"]
+# 过滤如下列表中的频道
+listUnused = ["单音轨", "画中画", "热门", "直播室", "爱", "92", "创新及人才", "云演艺", "雅克音乐", "电信导视", "嘉佳卡通", "家政频道",
+              "戏曲专区", "生活时尚", "足球高清专区", "红色影院专区", "经典剧场专区", "解密高清专区", "地理高清专区", "导视专区", "来钓鱼",
+              "麻辣体育", "绚影", "亲子趣学", "中录动漫", "中国体育", "健康养生", "SCTV-6", "CETV-4"]
 
-groupCCTV=["CCTV", "CETV", "CGTN"]
-groupWS=[ "卫视"]
-groupSC=["SCTV", "四川", "CDTV", "熊猫", "峨眉", "成都"]
-listUnused=["单音轨", "画中画", "热门", "直播室", "爱", "92"]
+orders = ["CCTV", "卫视", "四川", "其他"]
 
 
-index = 1
-def getID():
-    global index
-    index = index+1
-    return index-1
-
-def setID(i):
-    global index
-    if i > index:
-        index = i+1
-    return index
-
-def checkChannelExist(listIptv, channel):
-    for k, v in listIptv.items():
-        if isIn(k, channel):
-            return True
-    return False
-
-def appendOnlineIptvFromTvbox(listIptv):
-    # 这里也需要添加 verify=False
-    onlineIptv = requests.get(sourceTvboxIptv, verify=False).content
-    lines = onlineIptv.splitlines()
-
-    for line in lines:
-        line=line.decode('utf-8')
-        groupMatch = re.search(r'(.+),#genre#', line)
-        if groupMatch:
-            g = groupMatch.group(1)
-            if g not in listIptv:
-                listIptv[g] = []
-            continue
-        if g == "YouTube":
-            continue
-
-        v=line.split(',')
-
-        if checkChannelExist(listIptv, v[0]):
-            listIptv[g].append({"id": getID(), "name": v[0], "address": v[1], "dup": True})
-            continue
-        else:
-            listIptv[g].append({"id": getID(), "name": v[0], "address": v[1]})
 
 
 def isIn(items, v):
     for item in items:
-        if item in v:   # 字符串内检查是否有子字符串
+        if item in v:  # 字符串内检查是否有子字符串
             return True
+
 
 def filterCategory(v):
     if isIn(groupCCTV, v):
-        return "CCTV"
+        return orders[0]
     elif isIn(groupWS, v):
-        return "卫视"
+        return orders[1]
     elif isIn(groupSC, v):
-        return "四川"
+        return orders[2]
     else:
-        return "其他"
+        return orders[3]
+
 
 def findIcon(m, id):
     for v in m:
         if v["name"] == id:
             return urljoin(sourceIcon51ZMT, v["icon"])
-            #return 'http://epg.51zmt.top:8000/' + v["icon"]
+            # return 'http://epg.51zmt.top:8000/' + v["icon"]
 
     return ""
 
 
 def loadIcon():
-    # 这里不需要 verify=False，因为是 HTTP
-    res = requests.get(sourceIcon51ZMT).content
-    m=[]
-    #res=""
-    #with open('./index.html') as f:
+    res = requests.get(sourceIcon51ZMT, verify=False, timeout=(10, 60)).content
+    m = []
+    # res=""
+    # with open('./index.html') as f:
     #    res=f.read()
 
     soup = BeautifulSoup(res, 'lxml')
@@ -120,83 +80,173 @@ def loadIcon():
 
     return m
 
-def generateM3U8(file):
-    file=open(file, "w")
-    name = '成都电信IPTV - ' + strict_rfc3339.now_to_rfc3339_utcoffset()
-    title = '#EXTM3U name=\"' + name + '\"' + ' url-tvg=\"http://epg.51zmt.top:8000/e.xml,https://epg.112114.xyz/pp.xml\"\n\n'
-    file.write(title)
+# 无法通过rtsp直接播放的频道
+rtsp_cannot_play = ['四川卫视4K','湖南卫视4K','江苏卫视4K','浙江卫视4K','东方卫视4K','深圳卫视4K','广东卫视4K','山东卫视4K']
 
-    for k, v in m.items():
+def generateM3U8(file):
+    file = open(file, "w", encoding='utf-8')
+    name = '成都电信IPTV - ' + datetime.now(china_tz).strftime("%Y-%m-%d %H:%M:%S")
+    # title = f'#EXTM3U name="{name}"' + ' x-tvg-url="https://epg.erw.cc/all.xml.gz" url-tvg="http://epg.51zmt.top:8000/e.xml.gz"\n'
+    # title = f'#EXTM3U name="{name}"' + ' x-tvg-url="https://epg.erw.cc/all.xml.gz"\n'
+    title = f'#EXTM3U name="{name}"' + ' x-tvg-url="https://epg.zsdc.eu.org/t.xml.gz"\n'
+    file.write(title)
+    for group in orders:
+        v = [iptv for iptv in iptvList if iptv["group"] == group]
         for c in v:
             if "dup" in c:
                 continue
-
-            if "ct" in c:
-                line = '#EXTINF:-1 tvg-logo="%s" tvg-id="%s" tvg-name="%s" group-title="%s",%s\n' % (c["icon"], c["id"], c["name"], k, c["name"])
-                line2 = homeLanAddress + '/rtp/' + c["address"] + "\n"
+            if c.get("catchupSource") is None:
+                continue
+            if c["tvgName"] in rtsp_cannot_play:
+                line = '#KODIPROP:inputstream=inputstream.ffmpegdirect\n#EXTINF:-1 tvg-logo="%s" tvg-id="%s" tvg-name="%s"%s group-title="%s",%s\n' % (
+                    c["icon"], c["tvgId"], c["tvgName"], getCatchupStr("default", c.get("catchupDays"), None), group, c["tvgName"])
+                line2 = homeLanAddress + '/udp/' + c["address"] + "\n"
             else:
-                line = '#EXTINF:-1 tvg-id="%s" tvg-name="%s" group-title="%s",%s\n' % (getID(), c["name"], k, c["name"])
-                line2 = c["address"] + "\n"
+                line = '#KODIPROP:inputstream=inputstream.ffmpegdirect\n#EXTINF:-1 tvg-logo="%s" tvg-id="%s" tvg-name="%s"%s group-title="%s",%s\n' % (
+                    c["icon"], c["tvgId"], c["tvgName"], getCatchupStr("append", c.get("catchupDays"), "?playseek={utc:YmdHMS}-{utcend:YmdHMS}"), group, c["tvgName"])
+                line2 = f'{c["catchupSource"]}\n'
 
             file.write(line)
             file.write(line2)
-
     file.close()
     print("Build m3u8 success.")
 
-def generateTXT(file):
-    file=open(file, "w")
-    for k, v in m.items():
-        line = '%s,#genre#\n' % (k)
-        file.write(line)
-
+def generateUdpxyM3U8(file):
+    file = open(file, "w", encoding='utf-8')
+    name = '成都电信IPTV - ' + datetime.now(china_tz).strftime("%Y-%m-%d %H:%M:%S")
+    # title = f'#EXTM3U name="{name}"' + ' x-tvg-url="https://epg.erw.cc/all.xml.gz" url-tvg="http://epg.51zmt.top:8000/e.xml.gz"\n'
+    # title = f'#EXTM3U name="{name}"' + ' x-tvg-url="https://epg.erw.cc/all.xml.gz"\n'
+    title = f'#EXTM3U name="{name}"' + ' x-tvg-url="https://epg.zsdc.eu.org/t.xml.gz"\n'
+    file.write(title)
+    for group in orders:
+        v = [iptv for iptv in iptvList if iptv["group"] == group]
         for c in v:
-            line = '%s,%s/rtp/%s\n' % (c["name"], homeLanAddress, c["address"])
-            if "ct" not in c:
-                line = '%s,%s\n' % (c["name"], c["address"])
+            if "dup" in c:
+                continue
+            line = '#KODIPROP:inputstream=inputstream.ffmpegdirect\n#EXTINF:-1 tvg-logo="%s" tvg-id="%s" tvg-name="%s"%s group-title="%s",%s\n' % (
+                c["icon"], c["tvgId"], c["tvgName"], getCatchupStr("default", c.get("catchupDays"), None if c.get("catchupSource") is None else f'{c.get("catchupSource")}?playseek={{utc:YmdHMS}}-{{utcend:YmdHMS}}'), group, c["tvgName"])
+            line2 = homeLanAddress + '/udp/' + c["address"] + "\n"
 
             file.write(line)
-
+            file.write(line2)
     file.close()
-    print("Build txt success.")
+    print("Build m3u8 success.")
 
+def getCatchupStr(catchup, days, catchupSource):
+    if catchupSource is None or days is None:
+        return ""
+    return f' catchup="{catchup}" catchup-days="{days}" catchup-source="{catchupSource}"'
 
+def upload_convert_egp(m3u8_file, epg_m3u8_file):
+    url = 'https://epg.51zmt.top:8001/api/upload/'
+    headers = {
+        'Accept': '*/*',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Origin': 'https://epg.51zmt.top:8001',
+        'Pragma': 'no-cache',
+        'Referer': 'https://epg.51zmt.top:8001/',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    }
+    upload_file = open(m3u8_file, 'rb')
+    files = {
+        'myfile': ('iptv.m3u8', upload_file, 'audio/mpegurl')
+    }
+
+    response = requests.post(url, headers=headers, files=files, verify=False, timeout=(10, 60))
+    print(response.text)
+    upload_file.close()
+    # 使用BeautifulSoup解析HTML
+    soup = BeautifulSoup(response.text, 'html.parser')
+    # 在HTML中查找下载链接
+    download_link = soup.find('a', href=True)
+    if download_link:
+        file_url = download_link['href']
+        # 获取绝对URL
+        absolute_url = urljoin(urlparse(url).scheme + "://" + urlparse(url).hostname, file_url)
+        # 下载文件
+        file_response = requests.get(absolute_url, verify=False, timeout=(10, 60))
+        # 将'your_file_name.extension'替换为所需的文件名和扩展名
+        with open(epg_m3u8_file, 'w', encoding='utf-8') as file:
+            file.write(file_response.content.decode())
+            file.flush()
+        print('文件成功下载！')
+    else:
+        print('在页面上找不到下载链接。')
+
+def checkChannelExist(iptvList, channel):
+    for item in iptvList:
+        if item["tvgName"] == channel:
+            print(f"频道 {channel} 已存在，跳过")
+            return True
+    return False
 def generateHome():
-    generateM3U8("./home/iptv.m3u8")
-    generateTXT("./home/iptv.txt")
+    m3u8_file = './home/iptv.m3u8'
+    # epg_m3u8_file = './home/iptv_epg.m3u8'
+    generateM3U8(m3u8_file)
+    print("生成m3u8完成")
 
-#exit(0)
+    with open(m3u8_file, "r", encoding="utf-8") as f:
+        content = f.read()
+    content = content.replace("{utc:YmdHMS}-{utcend:YmdHMS}", "${(b)yyyyMMddHHmmss}-${(e)yyyyMMddHHmmss}")
+    with open("./home/apt_iptv.m3u8", "w", encoding="utf-8") as f:
+        f.write(content)
+    print("生成APTV m3u8完成")
+
+    udpxy_m3u8_file = './home/udpxy_iptv.m3u8'
+    generateUdpxyM3U8(udpxy_m3u8_file)
+    print("生成udpxy_m3u8完成")
+
+    # upload_convert_egp(m3u8_file, epg_m3u8_file)
+    # print("补齐egp文件完成")
+    # fill_m3u8.fill_config(epg_m3u8_file, m3u8_file)
+    # print("修正m3u8文件完成")
+    # fill_erw_epg.fill_config(m3u8_file)
+    # print("调整tvg-id支持erw的epg完成")
 
 
-mIcons = loadIcon()
+# exit(0)
 
-# 这里添加 verify=False
-res = requests.get(sourceChengduMulticast, verify=False).content
+# print("开始加载台标")
+# mIcons = loadIcon()
+# print("台标加载完成")
+print("开始加载频道")
+res = requests.get(sourceChengduMulticast, verify=False, timeout=(10, 60)).content
 soup = BeautifulSoup(res, 'lxml')
-m={}
+# m = {}
+iptvList = []
+
 for tr in soup.find_all(name='tr'):
     td = tr.find_all(name='td')
     if td[0].string == "序号":
         continue
-
+    if td[5].string == '未能播放':
+        continue
     name = td[1].string
     if isIn(listUnused, name):
         continue
 
-
-    setID(int(td[0].string))
-
+    name = fill_m3u8.fullwidth_to_halfwidth(name)
     name = name.replace('超高清', '').replace('高清', '').replace('-', '').strip()
-
+    if name == 'CCTV少儿':
+        name = 'CCTV14'
     group = filterCategory(name)
-    icon = findIcon(mIcons, name)
+    # icon = findIcon(mIcons, name)
+    icon = ''
+    if os.path.exists(f'./logo/{name}.png'):
+        icon = f'https://iptv.zsdc.eu.org/logo/{name}.png'
 
-    if group not in m:
-        m[group] = []
+    # 判断name是否在m[group]中
+    if not checkChannelExist(iptvList, name):
+        iptvList.append({"id": td[0].string, "tvgId": name,"tvgName": name, "address": td[2].string, "catchupSource": td[6].string,
+                         "catchupDays": td[3].string, "icon": icon, "group": group})
+    # if name == "CCTV15": #增加CCTV-16频道
+    #     iptvList.append({"id": td[0].string, "tvgId": "CCTV16","tvgName": "CCTV16", "address": "239.93.42.54:5140", "icon": 'https://iptv.zsdc.eu.org/logo/CCTV16.png', "group": group})
+print("频道加载完成")
 
-    m[group].append({"id": td[0].string, "name": name, "address": td[2].string, "ct": True, "icon": icon})
-
-
-appendOnlineIptvFromTvbox(m)
+for item in iptvList: #支持4K频道EPG展示
+    if item["tvgName"].find("4K") > 0 and checkChannelExist(iptvList, item["tvgName"].replace("4K", "")):
+        item["tvgId"] = item["tvgName"].replace("4K", "")
 
 generateHome()
