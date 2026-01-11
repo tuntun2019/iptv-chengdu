@@ -12,7 +12,7 @@ import fill_m3u8, fill_erw_epg
 china_tz = pytz.timezone('Asia/Shanghai')
 
 sourceIcon51ZMT = "https://epg.51zmt.top:8001"
-sourceChengduMulticast = "https://epg.51zmt.top:8001/sctvmulticast.html"
+sourceChengduMulticast = "https://epg.51zmt.top/sctvmulticast.html"
 homeLanAddress = "http://192.168.19.1:8866"
 
 # groupCCTV=["CCTV", "CETV", "CGTN"]
