@@ -176,7 +176,7 @@ soup = BeautifulSoup(res, 'lxml')
 m={}
 for tr in soup.find_all(name='tr'):
     td = tr.find_all(name='td')
-    if td[0].string == "序号":
+    if td and len(td) > 0 and td[0].string == "序号":
         continue
 
     name = td[1].string
