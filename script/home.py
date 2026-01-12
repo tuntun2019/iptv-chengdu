@@ -18,7 +18,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 sourceTvboxIptv="https://raw.githubusercontent.com/gaotianliuyun/gao/master/list.txt"
 sourceIcon51ZMT="http://epg.51zmt.top:8000"
-sourceChengduMulticast="https://epg.51zmt.top/sctvmulticast.html"
+sourceChengduMulticast="https://epg.51zmt.top:8001/multicast/"
 homeLanAddress="http://192.168.16.254:8866"
 
 groupCCTV=["CCTV", "CETV", "CGTN"]
